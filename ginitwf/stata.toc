@@ -1,0 +1,3 @@
+v 3
+d ginivardiscreta - Gini para Variables Discretas
+p ginivardiscreta   Gini para variables discretas educativas - Thomas, Wang & Fan (2001)
