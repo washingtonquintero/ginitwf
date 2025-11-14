@@ -45,6 +45,14 @@ Mexican Journal of Educational Research and implements the discrete variable
 version of the Gini coefficient.
 
 
+{title:Installation}
+
+{pstd}
+To install this package:
+
+{phang2}{cmd:. net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace}
+
+
 {title:Options for ginivardiscreta}
 
 {phang}
@@ -151,6 +159,10 @@ Washington Quintero Montaño{p_end}
 Universidad de Guayaquil{p_end}
 {pstd}
 Email: washington.quinterom@ug.edu.ec{p_end}
+{pstd}
+Repository: github.com/washingtonquintero/ginitwf{p_end}
+{pstd}
+Installation: net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace{p_end}
 
 
 {title:Also see}
