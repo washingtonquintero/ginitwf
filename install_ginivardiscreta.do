@@ -4,10 +4,10 @@
 display "Installing ginivardiscreta package..."
 display "Gini para Variables Discretas - Thomas, Wang & Fan (2001)"
 display "Autor: Washington Quintero Montaño - Universidad de Guayaquil"
-display "Repository: github.com/washingtonquintero/gintiwf"
+display "Repository: github.com/washingtonquintero/ginitwf"
 
-capture net uninstall ginivardiscreta
-net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/gintiwf/main/") replace
+* Instalar desde GitHub con la ruta correcta
+net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
 
 display " "
 display "=================================================="
@@ -16,6 +16,7 @@ display "=================================================="
 display "Autor: Washington Quintero Montaño"
 display "Universidad de Guayaquil"
 display "Email: washington.quinterom@ug.edu.ec"
+display "Repositorio: github.com/washingtonquintero/ginitwf"
 display " "
 display "Available commands:"
 display "  {bf:ginivardiscreta} - Main command for Gini calculation"
