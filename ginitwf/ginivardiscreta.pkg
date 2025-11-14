@@ -7,5 +7,6 @@ d Email: washington.quinterom@ug.edu.ec
 d Fecha: 2024
 d Calcula coeficiente de Gini para variables discretas educativas
 d Basado en Cuenca & Urrutia (2019) - RMIE
+d Instalación: net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
 f ginivardiscreta.ado
 f ginivardiscreta.sthlp
