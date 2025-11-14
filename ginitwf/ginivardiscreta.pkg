@@ -1,12 +1,8 @@
-* ginivardiscreta.pkg
-v 1.0
-d ginivardiscreta - Gini para Variables Discretas
-d Métodología: Thomas, Wang & Fan (2001)
+v 3.0
+d ginivardiscreta - Coeficiente de Gini para Variables Discretas
 d Autor: Washington Quintero Montaño - Universidad de Guayaquil
 d Email: washington.quinterom@ug.edu.ec
-d Fecha: 2024
-d Calcula coeficiente de Gini para variables discretas educativas
-d Basado en Cuenca & Urrutia (2019) - RMIE
+d Método: Thomas, Wang & Fan (2001)
 d Instalación: net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
 f ginivardiscreta.ado
 f ginivardiscreta.sthlp
