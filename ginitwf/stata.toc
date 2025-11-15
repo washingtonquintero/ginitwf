@@ -1,3 +1,3 @@
 v 3
-d ginivardiscreta - Gini para Variables Discretas
-p ginivardiscreta   Coeficiente de Gini para variables discretas - Thomas, Wang & Fan (2001)
+d ginitwf - Gini para Variables Discretas
+p ginitwf   Coeficiente de Gini Thomas-Wang-Fan para variables discretas
