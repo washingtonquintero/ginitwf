@@ -2,23 +2,23 @@
 {title:Title}
 
 {phang}
-{bf:ginivardiscreta} {hline 2} Calculate Gini coefficient for discrete variables
+{bf:ginitwf} {hline 2} Calculate Gini coefficient for discrete variables
 
 {title:Syntax}
 
 {p 8 16 2}
-{cmd:ginisetup} {cmd:,} {opt var:iable(varname)}
+{cmd:ginitwfsetup} {cmd:,} {opt var:iable(varname)}
 
 {p 8 16 2}
-{cmd:ginieducacion} {cmd:,} {opt var:iable(varname)}
+{cmd:ginitwfeduc} {cmd:,} {opt var:iable(varname)}
 
 {p 8 16 2}
-{cmd:ginivardiscreta} {varlist} [{cmd:,} {opt min:obs(#)}]
+{cmd:ginitwf} {varlist} [{cmd:,} {opt min:obs(#)}]
 
 {title:Description}
 
 {pstd}
-{bf:ginivardiscreta} calculates the Gini coefficient using the 
+{bf:ginitwf} calculates the Gini coefficient using the 
 methodology proposed by Thomas, Wang & Fan (2001) for discrete variables.
 
 {title:Author}
