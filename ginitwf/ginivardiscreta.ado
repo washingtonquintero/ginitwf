@@ -2,13 +2,12 @@
 * ginivardiscreta.ado - Coeficiente de Gini para Variables Discretas
 * AUTOR: Washington Quintero Montaño - Universidad de Guayaquil
 * EMAIL: washington.quinterom@ug.edu.ec
-* VERSIÓN: 3.0
+* VERSIÓN: 3.1
 * MÉTODO: Thomas, Wang & Fan (2001)
-* INSTALACIÓN: net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
 * ============================================================
 
 program define ginisetup
-    syntax, VARiable(string)
+    syntax, variable(string)
     display _n
     display as text "{bf:ginivardiscreta - CONFIGURACIÓN}"
     display as text "Variable: `variable'"
@@ -20,7 +19,7 @@ program define ginisetup
 end
 
 program define ginieducacion
-    syntax, VARiable(string)
+    syntax, variable(string)
     display _n
     display as text "{bf:ginivardiscreta - CONFIGURACIÓN EDUCATIVA}"
     display as text "Método: Thomas, Wang & Fan (2001)"
@@ -39,7 +38,7 @@ program define ginieducacion
 end
 
 program define ginivardiscreta
-    syntax varlist [if] [in], [MINobs(integer 30)] [SHOWall] [REPLACE] [SAVE(string)]
+    syntax varlist [if] [in], [minobs(integer 30)] [showall] [replace] [save(string)]
     display _n
     display as text "{bf:ginivardiscreta - ANÁLISIS DE DESIGUALDAD}"
     display as text "Variables: `varlist' | Mínimo: `minobs' observaciones"
