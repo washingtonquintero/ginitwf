@@ -1,2 +1,8 @@
-# ginitwf
-Paquete Stata para calcular el coeficiente de Gini educativo usando la metodología de Thomas, Wang &amp; Fan (2001).
+# ginivardiscreta - Stata Package
+
+Paquete Stata para calcular el coeficiente de Gini para variables discretas.
+
+## Instalación
+
+```stata
+net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
