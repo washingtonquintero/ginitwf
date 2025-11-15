@@ -1,10 +1,6 @@
 v 2.0
 d ginitwf - Coeficiente de Gini para Variables Discretas
 d Autor: Washington Quintero Montaño - Universidad de Guayaquil
-d Estructura: Múltiples archivos .ado
+d Estructura: archivos .ado
 f ginitwf.ado
-f ginitwf-setup.ado
-f ginitwf-educ.ado
-f ginitwf-help.ado
-f ginitwf-resumen.ado
 f ginitwf.sthlp
