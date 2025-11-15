@@ -1,8 +1,0 @@
-v 3.1
-d ginivardiscreta - Coeficiente de Gini para Variables Discretas
-d Autor: Washington Quintero Montaño - Universidad de Guayaquil
-d Email: washington.quinterom@ug.edu.ec
-d Método: Thomas, Wang & Fan (2001)
-d Instalación: net install ginivardiscreta, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
-f ginivardiscreta.ado
-f ginivardiscreta.sthlp
