@@ -9,6 +9,109 @@
 * ============================================================
 
 * ============================================================
+* PROGRAMA: ginisetup - CONFIGURACIÓN GENÉRICA
+* ============================================================
+program define ginisetup
+    version 15.0
+    syntax, VARiable(string)
+    
+    display _n
+    display as text "{hline 60}"
+    display as text "{bf:ginivardiscreta - CONFIGURACIÓN GENÉRICA}"
+    display as text "{hline 60}"
+    display as text "Variable a configurar: `variable'"
+    display as text "{hline 60}"
+    
+    * Verificar que la variable existe
+    capture confirm variable `variable'
+    if _rc != 0 {
+        display as error "ERROR: Variable `variable' no encontrada en el dataset."
+        exit 111
+    }
+    
+    * Crear variables de trabajo para Gini
+    capture drop _gini_value _gini_prop
+    generate _gini_value = `variable'
+    generate _gini_prop = 1
+    
+    * Etiquetar variables
+    label variable _gini_value "Valor numérico - Cálculo Gini"
+    label variable _gini_prop "Proporción/Peso"
+    
+    display as text "✓ Variables creadas: _gini_value, _gini_prop"
+    display as text "✓ Variable base: `variable'"
+    display as text "✓ Configuración automática completada"
+    
+    * Mostrar resumen
+    display _n as text "{bf:RESUMEN DE LA VARIABLE:}"
+    summarize `variable', detail
+    display _n as text "Ahora puede usar: {bf:ginivardiscreta} variable_grupo"
+    display as text "{hline 60}"
+end
+
+* ============================================================
+* PROGRAMA: ginieducacion - CONFIGURACIÓN ESPECÍFICA PARA EDUCACIÓN
+* ============================================================
+program define ginieducacion
+    version 15.0
+    syntax, VARiable(string)
+    
+    display _n
+    display as text "{hline 60}"
+    display as text "{bf:ginivardiscreta - CONFIGURACIÓN PARA VARIABLES EDUCATIVAS}"
+    display as text "{hline 60}"
+    display as text "Método: Thomas, Wang & Fan (2001)"
+    display as text "Variable educativa: `variable'"
+    display as text "{hline 60}"
+    
+    * Verificar que la variable existe
+    capture confirm variable `variable'
+    if _rc != 0 {
+        display as error "ERROR: Variable `variable' no encontrada en el dataset."
+        exit 111
+    }
+    
+    * Crear variables de trabajo
+    capture drop _gini_value _gini_prop
+    generate _gini_value = .
+    generate _gini_prop = .
+    
+    display as text "Aplicando valores de Thomas, Wang & Fan (2001)..."
+    
+    * Asignar valores según metodología Thomas et al.
+    replace _gini_value = 0    if `variable' == 0              // Sin nivel
+    replace _gini_value = 2.72 if inrange(`variable', 1, 5)    // Primaria incompleta
+    replace _gini_value = 6    if `variable' == 6              // Primaria completa
+    replace _gini_value = 8.48 if inrange(`variable', 7, 10)   // Secundaria incompleta
+    replace _gini_value = 11   if `variable' == 11             // Secundaria completa
+    replace _gini_value = 13.54 if inrange(`variable', 12, 15) // Superior incompleta
+    replace _gini_value = 16.07 if inrange(`variable', 16, 17) // Superior completa
+    replace _gini_value = 18   if `variable' >= 18             // Posgrado
+    
+    * Calcular proporciones para cada nivel
+    quietly levelsof _gini_value, local(valores_unicos)
+    foreach valor of local valores_unicos {
+        count if _gini_value == `valor'
+        replace _gini_prop = r(N) / _N if _gini_value == `valor'
+    }
+    
+    * Etiquetar variables
+    label variable _gini_value "Años de educación (Thomas et al.)"
+    label variable _gini_prop "Proporción por nivel educativo"
+    
+    display as text "✓ Valores educativos asignados"
+    display as text "✓ Proporciones calculadas"
+    display as text "✓ Configuración educativa completada"
+    
+    * Mostrar distribución
+    display _n as text "{bf:DISTRIBUCIÓN POR NIVELES EDUCATIVOS:}"
+    tabulate _gini_value, summarize(_gini_prop)
+    
+    display _n as text "Ahora puede usar: {bf:ginivardiscreta} variable_grupo"
+    display as text "{hline 60}"
+end
+
+* ============================================================
 * PROGRAMA PRINCIPAL - ginivardiscreta
 * ============================================================
 program define ginivardiscreta
@@ -96,116 +199,6 @@ program define ginivardiscreta
 end
 
 * ============================================================
-* PROGRAMA: ginisetup - CONFIGURACIÓN GENÉRICA
-* ============================================================
-program define ginisetup
-    version 15.0
-    syntax, VARiable(string) [AUTOmatic]
-    
-    display _n
-    display as text "{hline 60}"
-    display as text "{bf:ginivardiscreta - CONFIGURACIÓN GENÉRICA}"
-    display as text "{hline 60}"
-    display as text "Variable a configurar: `variable'"
-    display as text "{hline 60}"
-    
-    * Verificar que la variable existe
-    capture confirm variable `variable'
-    if _rc != 0 {
-        display as error "ERROR: Variable `variable' no encontrada en el dataset."
-        exit 111
-    }
-    
-    * Crear variables de trabajo para Gini
-    capture drop _gini_value _gini_prop
-    generate _gini_value = `variable'
-    generate _gini_prop = 1
-    
-    * Etiquetar variables
-    label variable _gini_value "Valor numérico - Cálculo Gini"
-    label variable _gini_prop "Proporción/Peso"
-    
-    display as text "✓ Variables creadas: _gini_value, _gini_prop"
-    display as text "✓ Variable base: `variable'"
-    display as text "✓ Configuración automática completada"
-    
-    * Mostrar resumen
-    display _n as text "{bf:RESUMEN DE LA VARIABLE:}"
-    summarize `variable', detail
-    display _n as text "Ahora puede usar: {bf:ginivardiscreta} variable_grupo"
-    display as text "{hline 60}"
-end
-
-* ============================================================
-* PROGRAMA: ginieducacion - CONFIGURACIÓN ESPECÍFICA PARA EDUCACIÓN
-* ============================================================
-program define ginieducacion
-    version 15.0
-    syntax, VARiable(string)
-    
-    display _n
-    display as text "{hline 60}"
-    display as text "{bf:ginivardiscreta - CONFIGURACIÓN PARA VARIABLES EDUCATIVAS}"
-    display as text "{hline 60}"
-    display as text "Método: Thomas, Wang & Fan (2001)"
-    display as text "Variable educativa: `variable'"
-    display as text "{hline 60}"
-    
-    * Verificar que la variable existe
-    capture confirm variable `variable'
-    if _rc != 0 {
-        display as error "ERROR: Variable `variable' no encontrada en el dataset."
-        exit 111
-    }
-    
-    * Crear variables de trabajo
-    capture drop _gini_value _gini_prop
-    generate _gini_value = .
-    generate _gini_prop = .
-    
-    display as text "Aplicando valores de Thomas, Wang & Fan (2001)..."
-    
-    * Asignar valores según metodología Thomas et al.
-    replace _gini_value = 0    if `variable' == 0              // Sin nivel
-    replace _gini_value = 2.72 if inrange(`variable', 1, 5)    // Primaria incompleta
-    replace _gini_value = 6    if `variable' == 6              // Primaria completa
-    replace _gini_value = 8.48 if inrange(`variable', 7, 10)   // Secundaria incompleta
-    replace _gini_value = 11   if `variable' == 11             // Secundaria completa
-    replace _gini_value = 13.54 if inrange(`variable', 12, 15) // Superior incompleta
-    replace _gini_value = 16.07 if inrange(`variable', 16, 17) // Superior completa
-    replace _gini_value = 18   if `variable' >= 18             // Posgrado
-    
-    * Calcular proporciones para cada nivel
-    quietly levelsof _gini_value, local(valores_unicos)
-    foreach valor of local valores_unicos {
-        count if _gini_value == `valor'
-        replace _gini_prop = r(N) / _N if _gini_value == `valor'
-    }
-    
-    * Etiquetar variables
-    label variable _gini_value "Años de educación (Thomas et al.)"
-    label variable _gini_prop "Proporción por nivel educativo"
-    
-    * Crear etiquetas para niveles educativos
-    label define gini_nivel 0 "Sin nivel" 2.72 "Primaria incompleta" ///
-        6 "Primaria completa" 8.48 "Secundaria incompleta" ///
-        11 "Secundaria completa" 13.54 "Superior incompleta" ///
-        16.07 "Superior completa" 18 "Posgrado"
-    label values _gini_value gini_nivel
-    
-    display as text "✓ Valores educativos asignados"
-    display as text "✓ Proporciones calculadas"
-    display as text "✓ Configuración educativa completada"
-    
-    * Mostrar distribución
-    display _n as text "{bf:DISTRIBUCIÓN POR NIVELES EDUCATIVOS:}"
-    tabulate _gini_value, summarize(_gini_prop)
-    
-    display _n as text "Ahora puede usar: {bf:ginivardiscreta} variable_grupo"
-    display as text "{hline 60}"
-end
-
-* ============================================================
 * SUBPROGRAMA: CÁLCULO DEL COEFICIENTE DE GINI
 * ============================================================
 program define gini_calcular
@@ -265,8 +258,7 @@ program define gini_calcular
             forvalues i = 1/`n_valores' {
                 local valor = valores_unicos[`i', 1]
                 local porcentaje = proporciones_mat[`i', 1] * 100
-                local etiqueta_valor : label (_gini_value) `valor'
-                display as text "      `etiqueta_valor': " as result %5.1f `porcentaje' "%"
+                display as text "      Valor `valor': " as result %5.1f `porcentaje' "%"
             }
         }
         
@@ -307,6 +299,7 @@ end
 * ============================================================
 program define ginihelp
     display _n
+    display as text "{hline 60}"
     display as text "{bf:ginivardiscreta - AYUDA RÁPIDA}"
     display as text "{hline 60}"
     display as text "Comandos disponibles:"
@@ -325,12 +318,5 @@ program define ginihelp
 end
 
 * ============================================================
-* INICIALIZACIÓN - Mostrar mensaje al cargar
-* ============================================================
-display as text "Paquete {bf:ginivardiscreta} v3.0 cargado correctamente"
-display as text "Autor: Washington Quintero Montaño - Universidad de Guayaquil"
-display as text "Use {bf:ginihelp} para ver los comandos disponibles"
-
-* ============================================================
-* FIN DEL ARCHIVO ginivardiscreta.ado
+* FIN DEL ARCHIVO
 * ============================================================
