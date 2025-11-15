@@ -1,8 +1,10 @@
-v 1.0
+v 2.0
 d ginitwf - Coeficiente de Gini para Variables Discretas
 d Autor: Washington Quintero Montaño - Universidad de Guayaquil
-d Email: washington.quinterom@ug.edu.ec
-d Método: Thomas, Wang & Fan (2001)
-d Instalación: net install ginitwf, from("https://raw.githubusercontent.com/washingtonquintero/ginitwf/refs/heads/main/ginitwf/") replace
+d Estructura: Múltiples archivos .ado
 f ginitwf.ado
+f ginitwf-setup.ado
+f ginitwf-educ.ado
+f ginitwf-help.ado
+f ginitwf-resumen.ado
 f ginitwf.sthlp
