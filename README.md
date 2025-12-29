@@ -1,0 +1,2 @@
+# ginitwf
+GINI VARIABLES DISCRETAS
