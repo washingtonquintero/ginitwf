@@ -1,4 +1,4 @@
-Este es mi Ado: *! version 1.0.0 2025-03-30 
+*! version 1.0.0 2025-03-30 
 *! Calcula coeficiente de Gini para variables continuas y Gini educativo para discretas
 *! Autores: Basado en Deaton (1997) y Thomas, Wang & Fan (2001) *! Repositorio: https://github.com/washingtonquintero/ginitwf
 *! GINITWF — Gini for continuous & discrete variables
