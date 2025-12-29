@@ -1,0 +1,5 @@
+v 3
+d ginitwf: Calcula coeficientes de Gini para variables continuas y Gini Educativo para discretas
+d Distribution-Date: 30 March 2025
+f ginitwf.ado
+f ginitwf.sthlp
