@@ -1,29 +1,193 @@
-*! version 2.0.0 2025-03-30
-*! Ginitwf: Gini coefficients for continuous and discrete variables
-*! Authors: Washington Quintero
-*! Based on: Deaton (1997) and Thomas, Wang & Fan (2001)
+*! version 3.0.0 2025-03-30
+*! Ginitwf: Gini coefficients with and without by()/weight() options
+*! Author: Washington Quintero
+*! Compatible with: Stata 14+
 *! Repository: https://github.com/washingtonquintero/ginitwf
 
 program define ginitwf, rclass
     version 14
     syntax varname [if] [in] [aweight fweight pweight iweight/] ///
-        [, BY(varname) TYPE(string) LEVels(varname) XIvar(varname) EDUcational ///
-        SAVing(string) REPLACE noPRINT]
+        [, BY(varname) TYPE(string) LEVels(varname) XIvar(varname) ///
+        EDUcational SAVing(string) REPLACE noPRINT]
     
     marksample touse
     markout `touse' `by'
     
-    * Verificar opciones de guardado
-    if "`saving'" != "" {
-        confirm new file "`saving'"
+    * Mensaje informativo sobre opciones disponibles
+    if "`by'" != "" | "`weight'" != "" {
+        di as text _n "Nota: Usando opciones avanzadas ("
+        if "`by'" != "" di as text "by(`by') "
+        if "`weight'" != "" di as text "`weight'`exp' "
+        di as text ")"
     }
     
-    * Manejo de pesos
-    if "`weight'" != "" {
-        local wtype `weight'
-        local wexp `"=`exp'"'
-        local wgt `"[`weight'`exp']"'
+    * Opción 1: CON by() - Análisis por grupos
+    if "`by'" != "" {
+        ginitwf_by `varlist' if `touse' `exp', ///
+            by(`by') type(`type') levels(`levels') xivar(`xivar') ///
+            educational(`educational') saving(`saving') `replace' `print'
     }
+    * Opción 2: SIN by() - Análisis general
+    else {
+        ginitwf_general `varlist' if `touse' `exp', ///
+            type(`type') levels(`levels') xivar(`xivar') ///
+            educational(`educational') saving(`saving') `replace' `print'
+    }
+end
+
+* ---------------------------------------------------------------------------
+* 1. SUBPROGRAMA PARA ANÁLISIS POR GRUPOS (CON by())
+* ---------------------------------------------------------------------------
+program define ginitwf_by, rclass
+    syntax varname [if] [in] [aweight fweight pweight iweight/] ///
+        , BY(varname) [TYPE(string) LEVels(varname) XIvar(varname) ///
+        EDUcational SAVing(string) REPLACE noPRINT]
+    
+    marksample touse
+    
+    * Crear variable de grupo
+    tempvar group
+    qui egen `group' = group(`by') if `touse', label
+    qui sum `group' if `touse', meanonly
+    local n_groups = r(max)
+    
+    * Mostrar encabezado
+    if "`noprint'" != "noprint" {
+        di _n as text "{hline 60}"
+        di as text "COEFICIENTE GINI POR GRUPO: `by'"
+        di as text "{hline 60}"
+        di as text "Número de grupos: " as result `n_groups'
+        di as text "Variable: " as result "`varlist'"
+        if "`weight'" != "" {
+            di as text "Peso: " as result "`weight'`exp'"
+        }
+        di as text "{hline 60}"
+    }
+    
+    * Matriz para resultados
+    tempname results_mat
+    matrix `results_mat' = J(`n_groups', 6, .)
+    matrix colnames `results_mat' = Grupo N Media Gini Min Max
+    
+    * Calcular para cada grupo
+    forvalues g = 1/`n_groups' {
+        * Obtener etiqueta del grupo
+        levelsof `by' if `group' == `g', local(group_label) clean
+        local group_label = subinstr(`"`group_label'"', `"""', "", .)
+        
+        if "`noprint'" != "noprint" {
+            di as text _n "Grupo `g': `group_label'"
+        }
+        
+        * Calcular Gini para este grupo
+        if "`weight'" != "" {
+            local wgt `"[`weight'`exp']"'
+        }
+        
+        capture {
+            if "`educational'" != "" | ("`type'" == "discrete" & "`levels'" != "" & "`xivar'" != "") {
+                * Gini educativo (discreto)
+                if "`weight'" != "" {
+                    gini_discreto `varlist' if `touse' & `group' == `g' `wgt', ///
+                        levels(`levels') xivar(`xivar') noprint
+                }
+                else {
+                    gini_discreto `varlist' if `touse' & `group' == `g', ///
+                        levels(`levels') xivar(`xivar') noprint
+                }
+            }
+            else {
+                * Gini continuo
+                if "`weight'" != "" {
+                    gini_continuo `varlist' if `touse' & `group' == `g' `wgt', noprint
+                }
+                else {
+                    gini_continuo `varlist' if `touse' & `group' == `g', noprint
+                }
+            }
+            
+            * Almacenar resultados
+            matrix `results_mat'[`g', 1] = `g'
+            matrix `results_mat'[`g', 2] = r(N)
+            matrix `results_mat'[`g', 3] = r(mean)
+            matrix `results_mat'[`g', 4] = r(gini)
+            matrix `results_mat'[`g', 5] = r(min)
+            matrix `results_mat'[`g', 6] = r(max)
+            
+            if "`noprint'" != "noprint" {
+                di as text "  Gini: " as result %8.4f r(gini) ///
+                    as text "  Media: " as result %8.2f r(mean) ///
+                    as text "  N: " as result r(N)
+            }
+        }
+        
+        if _rc != 0 {
+            if "`noprint'" != "noprint" {
+                di as error "  Error en cálculo"
+            }
+            matrix `results_mat'[`g', 1] = `g'
+            matrix `results_mat'[`g', 2] = 0
+            matrix `results_mat'[`g', 3] = .
+            matrix `results_mat'[`g', 4] = .
+        }
+    }
+    
+    * Mostrar tabla resumen
+    if "`noprint'" != "noprint" {
+        di _n as text "{hline 60}"
+        di as text "RESUMEN POR GRUPOS:"
+        di as text "{hline 60}"
+        matlist `results_mat', title("Coeficiente Gini por `by'") border(bottom)
+    }
+    
+    * Guardar resultados si se solicita
+    if "`saving'" != "" {
+        preserve
+        clear
+        
+        * Crear dataset con resultados
+        svmat `results_mat', names(col)
+        
+        * Agregar etiquetas de grupo
+        gen grupo_label = ""
+        forvalues g = 1/`n_groups' {
+            levelsof `by' if `group' == `g', local(label) clean
+            local label = subinstr(`"`label'"', `"""', "", .)
+            replace grupo_label = `"`label'"' if Grupo == `g'
+        }
+        
+        label var Grupo "ID del grupo"
+        label var grupo_label "Nombre del grupo"
+        label var N "Observaciones"
+        label var Media "Media"
+        label var Gini "Coeficiente Gini"
+        label var Min "Mínimo"
+        label var Max "Máximo"
+        
+        save "`saving'", `replace'
+        
+        if "`noprint'" != "noprint" {
+            di as green _n "Resultados guardados en: `saving'"
+        }
+        
+        restore
+    }
+    
+    * Retornar resultados
+    return matrix results_by = `results_mat'
+    return scalar n_groups = `n_groups'
+    return local by_var "`by'"
+end
+
+* ---------------------------------------------------------------------------
+* 2. SUBPROGRAMA PARA ANÁLISIS GENERAL (SIN by())
+* ---------------------------------------------------------------------------
+program define ginitwf_general, rclass
+    syntax varname [if] [in] [aweight fweight pweight iweight/] ///
+        [, TYPE(string) LEVels(varname) XIvar(varname) ///
+        EDUcational SAVing(string) REPLACE noPRINT]
+    
+    marksample touse
     
     * Determinar tipo de análisis
     if "`educational'" != "" {
@@ -31,578 +195,427 @@ program define ginitwf, rclass
     }
     
     if "`type'" == "" {
+        * Intentar inferir tipo
         qui tab `varlist' if `touse', matcell(freq)
         local unique_vals = r(r)
         
         if `unique_vals' <= 15 & "`levels'" != "" & "`xivar'" != "" {
             local type "discrete"
+            if "`noprint'" != "noprint" {
+                di as text "Nota: Tipo inferido como DISCRETE (valores únicos: `unique_vals')"
+            }
         }
         else {
             local type "continuous"
+            if "`noprint'" != "noprint" {
+                di as text "Nota: Tipo inferido como CONTINUOUS (valores únicos: `unique_vals')"
+            }
         }
     }
     
-    * Análisis por grupos
-    if "`by'" != "" {
-        tempname results_by
-        tempvar group
-        qui egen `group' = group(`by') if `touse', label
-        qui sum `group' if `touse', meanonly
-        local n_groups = r(max)
+    * Realizar cálculo según tipo
+    if "`type'" == "continuous" {
+        * Gini continuo (Deaton, 1997)
+        gini_continuo `varlist' if `touse' `exp', `noprint'
         
-        if "`print'" != "noprint" {
-            di _n as text "{title:Gini coefficients by group: `by'}"
-            di as text "Number of groups: " as result `n_groups'
-            di as text "{hline 60}"
+        if "`noprint'" != "noprint" {
+            di _n as text "Coeficiente de Gini (Deaton, 1997)"
+            di as text "Variable: " as result "`varlist'"
+            di as text "Observaciones: " as result r(N)
+            if "`weight'" != "" {
+                di as text "Peso utilizado: " as result "`weight'`exp'"
+            }
+            di as text "Media (μ): " as result %12.4f r(mean)
+            di as text "Coeficiente de Gini: " as result %12.4f r(gini)
         }
-        
-        matrix `results_by' = J(`n_groups', 6, .)
-        matrix colnames `results_by' = Group N SumW Mean Gini Type
-        matrix rownames `results_by' = `by'
-        
-        * Lista para almacenar etiquetas
-        local group_labels ""
-        
-        forvalues g = 1/`n_groups' {
-            * Obtener etiqueta del grupo
-            levelsof `by' if `group' == `g', local(group_label) clean
-            local group_labels `"`group_labels' `g'="`group_label'""'
-            
-            if "`print'" != "noprint" {
-                di as text "Group `g' (`group_label'):"
-            }
-            
-            capture {
-                if "`weight'" != "" {
-                    ginitwf_calc `varlist' if `touse' & `group' == `g' `wgt', ///
-                        type(`type') levels(`levels') xivar(`xivar') noprint
-                }
-                else {
-                    ginitwf_calc `varlist' if `touse' & `group' == `g', ///
-                        type(`type') levels(`levels') xivar(`xivar') noprint
-                }
-                
-                matrix `results_by'[`g', 1] = `g'
-                matrix `results_by'[`g', 2] = r(N)
-                matrix `results_by'[`g', 3] = r(sum_w)
-                matrix `results_by'[`g', 4] = r(mean)
-                matrix `results_by'[`g', 5] = r(gini)
-                matrix `results_by'[`g', 6] = cond("`type'" == "discrete", 2, 1)
-                
-                if "`print'" != "noprint" {
-                    di as text "    Gini: " as result %9.4f r(gini) ///
-                        as text ", Mean: " as result %9.4f r(mean) ///
-                        as text ", N: " as result r(N)
-                }
-            }
-            
-            if _rc != 0 & "`print'" != "noprint" {
-                di as error "    Could not calculate for group `g'"
-            }
-        }
-        
-        if "`print'" != "noprint" {
-            di as text "{hline 60}"
-            di _n
-            matlist `results_by', title("Results by `by'")
-        }
-        
-        * Guardar resultados si se solicita
-        if "`saving'" != "" {
-            preserve
-            clear
-            svmat `results_by', names(col)
-            
-            * Agregar etiquetas de grupo
-            gen group_label = ""
-            forvalues g = 1/`n_groups' {
-                local label: word `g' of `group_labels'
-                local label = subinstr("`label'", "`g'=", "", 1)
-                local label = subinstr(`"`label'"', `"""', "", .)
-                replace group_label = `"`label'"' if Group == `g'
-            }
-            
-            label var Group "Group ID"
-            label var group_label "Group label"
-            label var N "Number of observations"
-            label var SumW "Sum of weights"
-            label var Mean "Mean of `varlist'"
-            label var Gini "Gini coefficient"
-            label var Type "1=Continuous, 2=Discrete"
-            
-            save "`saving'", `replace'
-            if "`print'" != "noprint" {
-                di as green "Results saved to: `saving'"
-            }
-            restore
-        }
-        
-        return matrix results_by = `results_by'
-        return scalar n_groups = `n_groups'
-        return local by_var "`by'"
-        exit
     }
-    
-    * Análisis para toda la muestra
-    if "`weight'" != "" {
-        ginitwf_calc `varlist' if `touse' `wgt', ///
-            type(`type') levels(`levels') xivar(`xivar')
+    else if "`type'" == "discrete" {
+        * Verificar variables requeridas
+        if "`levels'" == "" | "`xivar'" == "" {
+            di as error "Error: Para tipo DISCRETE, debe especificar: levels() y xivar()"
+            exit 198
+        }
+        
+        * Gini educativo (Thomas et al., 2001)
+        gini_discreto `varlist' if `touse' `exp', ///
+            levels(`levels') xivar(`xivar') `noprint'
+        
+        if "`noprint'" != "noprint" {
+            di _n as text "Coeficiente de Gini Educativo (Thomas, Wang & Fan, 2001)"
+            di as text "Variable de años: " as result "`varlist'"
+            di as text "Variable de nivel: " as result "`levels'"
+            di as text "Variable xi: " as result "`xivar'"
+            di as text "Observaciones: " as result r(N)
+            if "`weight'" != "" {
+                di as text "Peso utilizado: " as result "`weight'`exp'"
+            }
+            di as text "Media (μ): " as result %12.4f r(mean)
+            di as text "Coeficiente de Gini: " as result %12.4f r(gini)
+        }
     }
     else {
-        ginitwf_calc `varlist' if `touse', ///
-            type(`type') levels(`levels') xivar(`xivar')
+        di as error "Tipo no reconocido. Use: continuous o discrete"
+        exit 198
     }
     
-    * Guardar resultados individuales si se solicita
+    * Guardar resultados si se solicita
     if "`saving'" != "" {
         preserve
         clear
         set obs 1
+        
         gen variable = "`varlist'"
+        gen tipo = "`type'"
         gen N = r(N)
-        gen sum_w = r(sum_w)
-        gen mean = r(mean)
+        gen media = r(mean)
         gen gini = r(gini)
-        gen type = cond("`type'" == "discrete", "Discrete", "Continuous")
-        gen method = r(method)
+        gen min = r(min)
+        gen max = r(max)
+        
+        if "`type'" == "discrete" {
+            gen niveles = r(niveles)
+        }
+        
+        if "`weight'" != "" {
+            gen peso_utilizado = "`weight'`exp'"
+        }
         
         save "`saving'", `replace'
-        if "`print'" != "noprint" {
-            di as green "Results saved to: `saving'"
+        
+        if "`noprint'" != "noprint" {
+            di as green _n "Resultados guardados en: `saving'"
         }
+        
         restore
     }
-end
-
-program define ginitwf_calc, rclass
-    version 14
-    syntax varname [if] [in] [aweight fweight pweight iweight/] ///
-        [, TYPE(string) LEVels(varname) XIvar(varname) noPRINT]
     
-    marksample touse
-    
-    * Determinar tipo si no se especificó
-    if "`type'" == "" {
-        qui tab `varlist' if `touse', matcell(freq)
-        local unique_vals = r(r)
-        
-        if `unique_vals' <= 15 & "`levels'" != "" & "`xivar'" != "" {
-            local type "discrete"
-        }
-        else {
-            local type "continuous"
-        }
+    * Retornar resultados
+    return scalar gini = r(gini)
+    return scalar mean = r(mean)
+    return scalar N = r(N)
+    return scalar min = r(min)
+    return scalar max = r(max)
+    if "`type'" == "discrete" {
+        return scalar niveles = r(niveles)
     }
-    
-    * Llamar al subprograma correspondiente
+    return local var "`varlist'"
+    return local type "`type'"
     if "`type'" == "continuous" {
-        gincontinuous_calc `varlist' if `touse' `exp', noprint(`noprint')
+        return local method "Deaton (1997)"
     }
-    else if "`type'" == "discrete" {
-        if "`levels'" == "" | "`xivar'" == "" {
-            di as error "For DISCRETE type, you must specify: levels() and xivar()"
-            exit 198
-        }
-        ginidiscrete_calc `varlist' if `touse' `exp', ///
-            levelvar(`levels') xivar(`xivar') noprint(`noprint')
+    else {
+        return local method "Thomas, Wang & Fan (2001)"
     }
 end
 
-program define gincontinuous_calc, rclass
+* ---------------------------------------------------------------------------
+* 3. SUBPROGRAMA PARA GINI CONTINUO (CON/SIN PESOS)
+* ---------------------------------------------------------------------------
+program define gini_continuo, rclass
     syntax varname [if] [in] [aweight fweight pweight iweight/] [, noPRINT]
     
     marksample touse
     
     * Manejar pesos
     if "`weight'" == "" {
-        local weight "aweight"
-        tempvar w
-        gen `w' = 1
-        local exp `"=`w'"'
-        local unweighted 1
+        * SIN pesos
+        qui sum `varlist' if `touse', meanonly
+        local mu = r(mean)
+        local n = r(N)
+        local sum_w = `n'
+        local min = r(min)
+        local max = r(max)
+        
+        if `mu' == 0 {
+            if "`noprint'" != "noprint" {
+                di as error "La media es cero, no se puede calcular Gini"
+            }
+            return scalar gini = .
+            return scalar mean = 0
+            return scalar N = `n'
+            exit
+        }
+        
+        * Cálculo SIN pesos (fórmula directa)
+        preserve
+        keep if `touse'
+        keep `varlist'
+        sort `varlist'
+        
+        gen orden = _n
+        gen term = (2*orden - `n' - 1) * `varlist'
+        qui sum term
+        local numerador = r(sum)
+        
+        local gini = `numerador' / (`n' * (`n' - 1) * `mu')
+        
+        restore
     }
     else {
-        local unweighted 0
-    }
-    
-    * Calcular estadísticas básicas
-    qui sum `varlist' if `touse' [`weight'`exp']
-    local mu = r(mean)
-    local sum_w = r(sum_w)
-    local n = r(N)
-    local sd = r(sd)
-    
-    if `mu' == 0 {
-        if "`noprint'" != "noprint" {
-            di as error "Mean is zero, cannot calculate Gini"
-        }
-        return scalar gini = .
-        return scalar mean = 0
-        return scalar N = `n'
-        return scalar sum_w = `sum_w'
-        exit
-    }
-    
-    * Preparar datos para cálculo eficiente
-    preserve
-    keep if `touse'
-    keep `varlist' `exp'
-    
-    * Crear variable de peso
-    tempvar w_var
-    gen double `w_var' `exp'
-    
-    * Ordenar por la variable de interés
-    sort `varlist'
-    
-    * Calcular estadísticas acumuladas
-    tempvar cum_w cum_wx
-    gen double `cum_w' = sum(`w_var')
-    gen double `cum_wx' = sum(`varlist' * `w_var')
-    
-    * Cálculo eficiente del Gini ponderado
-    * G = [Σ_i (2*F_i - w_i - W) * x_i * w_i] / (W² * μ)
-    * donde F_i es el peso acumulado hasta i
-    local W = `cum_w'[_N]  // Suma total de pesos
-    local T = `cum_wx'[_N] // Suma total de x*w
-    
-    tempvar Fi term
-    gen double `Fi' = `cum_w' - 0.5 * `w_var'
-    gen double `term' = (2 * `Fi' - `W') * `varlist' * `w_var'
-    
-    qui sum `term'
-    local numerator = r(sum)
-    
-    local gini = `numerator' / (`W' * `T')
-    
-    restore
-    
-    * Mostrar resultados
-    if "`noprint'" != "noprint" {
-        di _n as text "{title:Gini Coefficient (Deaton, 1997)}"
-        di as text "{hline 50}"
-        di as text "Variable:     " as result "`varlist'"
-        di as text "Type:         " as result "Continuous"
-        di as text "Observations: " as result `n'
+        * CON pesos
+        tempvar w_var
+        gen double `w_var' `exp' if `touse'
         
-        if !`unweighted' {
-            di as text "Sum of weights: " as result %12.2f `sum_w'
+        qui sum `varlist' [iw=`w_var'] if `touse'
+        local mu = r(mean)
+        local sum_w = r(sum_w)
+        local n = r(N)
+        
+        * Estadísticas mín/max (sin pesos para simplificar)
+        qui sum `varlist' if `touse'
+        local min = r(min)
+        local max = r(max)
+        
+        if `mu' == 0 {
+            if "`noprint'" != "noprint" {
+                di as error "La media es cero, no se puede calcular Gini"
+            }
+            return scalar gini = .
+            return scalar mean = 0
+            return scalar N = `n'
+            exit
         }
         
-        di as text "Mean (μ):      " as result %12.4f `mu'
-        di as text "Std. Dev.:     " as result %12.4f `sd'
-        di as text "Gini:          " as result %12.4f `gini'
-        di as text "{hline 50}"
+        * Cálculo CON pesos
+        preserve
+        keep if `touse'
+        keep `varlist' `exp'
         
-        * Interpretación
-        di _n as text "Interpretation:"
-        if `gini' < 0.2 {
-            di as text "  Inequality level: " as green "LOW"
-        }
-        else if `gini' < 0.4 {
-            di as text "  Inequality level: " as yellow "MODERATE"
-        }
-        else if `gini' < 0.6 {
-            di as text "  Inequality level: " as red "HIGH"
-        }
-        else {
-            di as text "  Inequality level: " as red "VERY HIGH"
-        }
+        * Crear variable de peso
+        tempvar peso
+        gen double `peso' `exp'
+        
+        * Ordenar
+        sort `varlist'
+        
+        * Calcular acumulados
+        tempvar w_acum w_acum2
+        gen double `w_acum' = sum(`peso')
+        gen double `w_acum2' = sum(`varlist' * `peso')
+        
+        * Fórmula ponderada
+        local W = `w_acum'[_N]
+        tempvar numerador
+        gen double `numerador' = (2*`w_acum' - `peso' - `W') * `varlist' * `peso'
+        qui sum `numerador'
+        local num = r(sum)
+        
+        local gini = `num' / (`W' * `W' * `mu')
+        
+        restore
     }
     
-    * Devolver resultados
+    * Retornar resultados
     return scalar gini = `gini'
     return scalar mean = `mu'
     return scalar N = `n'
     return scalar sum_w = `sum_w'
-    return scalar sd = `sd'
-    return local var "`varlist'"
-    return local method "Deaton (1997)"
-    return local type "continuous"
+    return scalar min = `min'
+    return scalar max = `max'
 end
 
-program define ginidiscrete_calc, rclass
-    syntax varname [if] [in] [aweight fweight pweight iweight/], ///
-        LEVelvar(varname) XIvar(varname) [, noPRINT]
+* ---------------------------------------------------------------------------
+* 4. SUBPROGRAMA PARA GINI DISCRETO (CON/SIN PESOS)
+* ---------------------------------------------------------------------------
+program define gini_discreto, rclass
+    syntax varname [if] [in] [aweight fweight pweight iweight/] ///
+        , LEVels(varname) XIvar(varname) [, noPRINT]
     
     marksample touse
+    
+    * Verificar que las variables existen
+    confirm variable `levels' `xivar'
     
     * Manejar pesos
     if "`weight'" == "" {
-        local weight "aweight"
-        tempvar w
-        gen `w' = 1
-        local exp `"=`w'"'
-        local unweighted 1
+        * SIN pesos
+        preserve
+        keep if `touse'
+        keep `varlist' `levels' `xivar'
+        
+        * Verificar consistencia
+        bysort `levels': egen double xi_check = sd(`xivar')
+        qui sum xi_check
+        if r(max) > 0.0001 {
+            di as error "Error: xi no es constante por nivel educativo"
+            exit 198
+        }
+        
+        * Colapsar por nivel
+        collapse (count) N = `varlist' (mean) xi_val = `xivar', by(`levels')
+        
+        * Calcular proporciones
+        egen N_total = total(N)
+        gen p_i = N / N_total
+        
+        * Ordenar por xi_val
+        sort xi_val
+        
+        * Calcular media
+        gen p_x = p_i * xi_val
+        egen mu = total(p_x)
+        
+        * Calcular doble sumatoria
+        local m = _N
+        local suma = 0
+        
+        forvalues i = 1/`m' {
+            forvalues j = 1/`m' {
+                if `i' != `j' {
+                    local dif = abs(xi_val[`i'] - xi_val[`j'])
+                    local suma = `suma' + p_i[`i'] * p_i[`j'] * `dif'
+                }
+            }
+        }
+        
+        * Calcular Gini
+        local gini = `suma' / (2 * mu[1])
+        
+        * Estadísticas
+        local n_obs = N_total[1]
+        local min = xi_val[1]
+        local max = xi_val[`m']
+        
+        restore
     }
     else {
-        local unweighted 0
-    }
-    
-    preserve
-    keep if `touse'
-    keep `varlist' `levelvar' `xivar' `exp'
-    
-    * Verificar que xi sea constante por nivel
-    bysort `levelvar': egen double xi_check = sd(`xivar')
-    qui sum xi_check
-    if r(max) > 0.0001 {
-        if "`noprint'" != "noprint" {
-            di as error "Error: xi is not constant by educational level"
-        }
-        restore
-        exit 198
-    }
-    drop xi_check
-    
-    * Colapsar por nivel con pesos
-    collapse (sum) peso = `exp' (mean) xi_val = `xivar', by(`levelvar')
-    
-    * Calcular total de pesos
-    qui sum peso
-    local total_peso = r(sum)
-    local n_levels = _N
-    
-    if `total_peso' == 0 {
-        if "`noprint'" != "noprint" {
-            di as error "Total weight is zero"
-        }
-        restore
-        return scalar gini = .
-        exit
-    }
-    
-    * Calcular proporciones ponderadas
-    gen double p_i = peso / `total_peso'
-    
-    * Ordenar por xi_val (ascendente)
-    sort xi_val
-    
-    * Calcular media ponderada
-    gen double p_x = p_i * xi_val
-    qui sum p_x
-    local mu = r(sum)
-    
-    if `mu' == 0 {
-        if "`noprint'" != "noprint" {
-            di as error "Weighted mean is zero, cannot calculate Gini"
-        }
-        restore
-        return scalar gini = .
-        exit
-    }
-    
-    * Calcular doble sumatoria: ΣΣ p_i * p_j * |x_i - x_j|
-    * Implementación eficiente con Mata
-    mata: mata clear
-    mata: p = st_data(., "p_i")
-    mata: x = st_data(., "xi_val")
-    mata: n = rows(p)
-    mata: G = 0
-    mata: for (i=1; i<=n; i++) {
-        for (j=1; j<=n; j++) {
-            G = G + p[i] * p[j] * abs(x[i] - x[j])
-        }
-    }
-    mata: mu = sum(p :* x)
-    mata: G = G / (2 * mu)
-    mata: st_numscalar("gini_mata", G)
-    mata: st_numscalar("mu_mata", mu)
-    
-    local gini_educ = scalar(gini_mata)
-    local mu = scalar(mu_mata)
-    
-    * Calcular también estadísticas adicionales
-    qui sum xi_val [aw=peso]
-    local min = r(min)
-    local max = r(max)
-    local range = `max' - `min'
-    
-    restore
-    
-    * Mostrar resultados
-    if "`noprint'" != "noprint" {
-        di _n as text "{title:Educational Gini Coefficient (Thomas, Wang & Fan, 2001)}"
-        di as text "{hline 60}"
-        di as text "Variable:       " as result "`varlist'"
-        di as text "Type:           " as result "Discrete (Educational)"
-        di as text "Level variable: " as result "`levelvar'"
-        di as text "Xi variable:    " as result "`xivar'"
-        di as text "Number of levels: " as result `n_levels'
+        * CON pesos
+        tempvar w_var
+        gen double `w_var' `exp' if `touse'
         
-        if !`unweighted' {
-            di as text "Sum of weights:   " as result %12.2f `total_peso'
+        preserve
+        keep if `touse'
+        keep `varlist' `levels' `xivar' `exp'
+        
+        * Colapsar con pesos
+        collapse (sum) peso = `exp' (mean) xi_val = `xivar', by(`levels')
+        
+        * Calcular proporciones ponderadas
+        egen peso_total = total(peso)
+        gen p_i = peso / peso_total
+        
+        * Ordenar por xi_val
+        sort xi_val
+        
+        * Media ponderada
+        gen p_x = p_i * xi_val
+        egen mu = total(p_x)
+        
+        * Calcular doble sumatoria ponderada
+        local m = _N
+        local suma = 0
+        
+        forvalues i = 1/`m' {
+            forvalues j = 1/`m' {
+                if `i' != `j' {
+                    local dif = abs(xi_val[`i'] - xi_val[`j'])
+                    local suma = `suma' + p_i[`i'] * p_i[`j'] * `dif'
+                }
+            }
         }
         
-        di as text "Weighted mean (μ): " as result %12.4f `mu'
-        di as text "Range (max-min):   " as result %12.4f `range'
-        di as text "Gini coefficient:  " as result %12.4f `gini_educ'
-        di as text "{hline 60}"
+        * Calcular Gini
+        local gini = `suma' / (2 * mu[1])
         
-        * Interpretación específica para educación
-        di _n as text "Educational inequality interpretation:"
-        if `gini_educ' < 0.15 {
-            di as text "  Level: " as green "VERY LOW inequality"
-            di as text "  Interpretation: High educational equality"
-        }
-        else if `gini_educ' < 0.25 {
-            di as text "  Level: " as green "LOW inequality"
-            di as text "  Interpretation: Moderate educational equality"
-        }
-        else if `gini_educ' < 0.35 {
-            di as text "  Level: " as yellow "MODERATE inequality"
-            di as text "  Interpretation: Some educational disparities"
-        }
-        else if `gini_educ' < 0.45 {
-            di as text "  Level: " as red "HIGH inequality"
-            di as text "  Interpretation: Significant educational gaps"
-        }
-        else {
-            di as text "  Level: " as red "VERY HIGH inequality"
-            di as text "  Interpretation: Severe educational disparities"
-        }
+        * Estadísticas
+        local n_obs = peso_total[1]
+        local min = xi_val[1]
+        local max = xi_val[`m']
+        
+        restore
     }
     
-    * Devolver resultados
-    return scalar gini = `gini_educ'
+    * Retornar resultados
+    return scalar gini = `gini'
     return scalar mean = `mu'
-    return scalar N = `total_peso'
-    return scalar sum_w = `total_peso'
-    return scalar niveles = `n_levels'
+    return scalar N = `n_obs'
+    return scalar niveles = `m'
     return scalar min = `min'
     return scalar max = `max'
-    return scalar range = `range'
-    return local var "`varlist'"
-    return local method "Thomas, Wang & Fan (2001)"
-    return local type "discrete"
 end
 
+* ---------------------------------------------------------------------------
+* 5. COMANDOS AUXILIARES (MANTENIENDO COMPATIBILIDAD)
+* ---------------------------------------------------------------------------
+
+* 5.1 ginitwfsetup (igual que antes)
 program define ginitwfsetup
     version 14
-    syntax [if] [in]
+    di _n as text "Configurando variables para Gini Educativo..."
     
-    marksample touse
-    
-    di _n as text "{title:Setting up variables for Educational Gini Analysis}"
-    di as text "Based on Thomas, Wang & Fan (2001) methodology"
-    di as text "{hline 60}"
-    
-    * Verificar variable p10a (ENAHO)
+    * Crear variable anios_educ a partir de p10a
     cap confirm variable p10a
     if _rc {
-        di as yellow "Note: Variable p10a not found. Creating generic educational variables."
-        
-        * Crear variable de años de educación simulada
-        if "`if'`in'" != "" {
-            qui count if `touse'
-            if r(N) > 0 {
-                qui gen anios_educ = floor(runiform()*19) if `touse'
-            }
-            else {
-                qui gen anios_educ = floor(runiform()*19)
-            }
-        }
-        else {
-            qui gen anios_educ = floor(runiform()*19)
-        }
-        
-        di as green "✓ Created variable: anios_educ (simulated years of education)"
+        di as yellow "Variable p10a no encontrada. Creando variables de ejemplo."
+        gen anios_educ = floor(runiform()*19)
     }
     else {
-        * Crear años de educación desde p10a (ENAHO)
         gen anios_educ = .
-        
-        replace anios_educ = 0 if inlist(p10a, 1, 2)    // Ninguno + Centro alfabetización
-        replace anios_educ = 3 if p10a == 3              // Primaria (incompleta)
-        replace anios_educ = 6 if p10a == 4              // Educación Básica (primaria completa)
-        replace anios_educ = 9 if p10a == 5              // Secundaria (incompleta)  
-        replace anios_educ = 11 if p10a == 6             // Educación Media (secundaria completa)
-        replace anios_educ = 14 if p10a == 7             // Superior no universitario
-        replace anios_educ = 16 if p10a == 8             // Superior Universitario
-        replace anios_educ = 18 if p10a == 9             // Post-grado
-        
-        di as green "✓ Created variable: anios_educ from p10a"
+        replace anios_educ = 0 if inlist(p10a, 1, 2)
+        replace anios_educ = 3 if p10a == 3
+        replace anios_educ = 6 if p10a == 4
+        replace anios_educ = 9 if p10a == 5
+        replace anios_educ = 11 if p10a == 6
+        replace anios_educ = 14 if p10a == 7
+        replace anios_educ = 16 if p10a == 8
+        replace anios_educ = 18 if p10a == 9
     }
     
-    * Crear niveles educativos (8 niveles según Thomas et al.)
+    * Crear niveles educativos
     gen nivel_educ = .
     gen xi = .
     
-    * Asignar niveles según rangos de años de educación
-    replace nivel_educ = 1 if anios_educ == 0                    // Sin nivel
+    replace nivel_educ = 1 if anios_educ == 0
     replace xi = 0 if nivel_educ == 1
     
-    replace nivel_educ = 2 if anios_educ >= 1 & anios_educ <= 5  // Primaria incompleta
-    replace xi = 2.72 if nivel_educ == 2  // Promedio histórico
+    replace nivel_educ = 2 if anios_educ >= 1 & anios_educ <= 5
+    replace xi = 2.72 if nivel_educ == 2
     
-    replace nivel_educ = 3 if anios_educ == 6                    // Primaria completa
+    replace nivel_educ = 3 if anios_educ == 6
     replace xi = 6 if nivel_educ == 3
     
-    replace nivel_educ = 4 if anios_educ >= 7 & anios_educ <= 10 // Secundaria incompleta
-    replace xi = 8.48 if nivel_educ == 4  // Promedio histórico
+    replace nivel_educ = 4 if anios_educ >= 7 & anios_educ <= 10
+    replace xi = 8.48 if nivel_educ == 4
     
-    replace nivel_educ = 5 if anios_educ == 11                   // Secundaria completa
+    replace nivel_educ = 5 if anios_educ == 11
     replace xi = 11 if nivel_educ == 5
     
-    replace nivel_educ = 6 if anios_educ >= 12 & anios_educ <= 15 // Superior incompleta
-    replace xi = 13.54 if nivel_educ == 6  // Promedio histórico
+    replace nivel_educ = 6 if anios_educ >= 12 & anios_educ <= 15
+    replace xi = 13.54 if nivel_educ == 6
     
-    replace nivel_educ = 7 if anios_educ >= 16 & anios_educ <= 17 // Superior completa
-    replace xi = 16.07 if nivel_educ == 7  // Promedio histórico
+    replace nivel_educ = 7 if anios_educ >= 16 & anios_educ <= 17
+    replace xi = 16.07 if nivel_educ == 7
     
-    replace nivel_educ = 8 if anios_educ >= 18                   // Postgrado
+    replace nivel_educ = 8 if anios_educ >= 18
     replace xi = 18 if nivel_educ == 8
     
-    * Etiquetar variables
-    label variable anios_educ "Years of education"
-    label variable nivel_educ "Educational level (1-8)"
-    label variable xi "Average years by level (Thomas et al.)"
+    * Etiquetar
+    label var anios_educ "Años de educación"
+    label var nivel_educ "Nivel educativo (1-8)"
+    label var xi "Años promedio por nivel"
     
-    label define niveles 1 "No education" 2 "Primary incomplete" 3 "Primary complete" ///
-                        4 "Secondary incomplete" 5 "Secondary complete" ///
-                        6 "Higher incomplete" 7 "Higher complete" 8 "Postgraduate"
+    label define niveles 1 "Sin nivel" 2 "Primaria inc." 3 "Primaria comp." ///
+                        4 "Secundaria inc." 5 "Secundaria comp." ///
+                        6 "Superior inc." 7 "Superior comp." 8 "Postgrado"
     label values nivel_educ niveles
     
-    * Estadísticas descriptivas
-    qui count if !missing(anios_educ)
-    local n = r(N)
-    
-    qui sum anios_educ
-    local mean_educ = r(mean)
-    local sd_educ = r(sd)
-    
-    qui tab nivel_educ
-    local n_levels = r(r)
-    
-    di as green "✓ Created variable: nivel_educ (educational level 1-8)"
-    di as green "✓ Created variable: xi (average years by level)"
-    di _n
-    di as text "Descriptive statistics:"
-    di as text "  Observations with education data: " as result `n'
-    di as text "  Mean years of education: " as result %6.2f `mean_educ'
-    di as text "  Std. Dev. of education: " as result %6.2f `sd_educ'
-    di as text "  Number of educational levels: " as result `n_levels'
-    di _n
-    di as text "To calculate Educational Gini, use:"
-    di as result "  ginitwf anios_educ, type(discrete) levels(nivel_educ) xivar(xi)"
-    di _n
-    di as text "For population aged 25+ (completed education):"
-    di as result "  ginitwf anios_educ if edad >= 25, type(discrete) levels(nivel_educ) xivar(xi)"
+    di as green "✓ Variables creadas: anios_educ, nivel_educ, xi"
+    di _n as text "Use: ginitwf anios_educ, type(discrete) levels(nivel_educ) xivar(xi)"
 end
 
+* 5.2 ginitwfeduc (versión simplificada)
 program define ginitwfeduc
     version 14
-    syntax [if] [in] [aweight fweight pweight iweight/] ///
-        [, BY(varname) AGE(integer 25) SAVing(string) REPLACE]
+    syntax [if] [in] [aweight fweight/] [, BY(varname) AGE(integer 25)]
     
-    * Verificar variables necesarias
+    * Verificar variables
     cap confirm variable anios_educ nivel_educ xi
     if _rc {
-        di as error "Educational variables not found. Run ginitwfsetup first."
+        di as error "Ejecute ginitwfsetup primero"
         exit 111
     }
     
-    * Filtrar por edad (por defecto 25+)
+    * Filtrar por edad
     if "`if'`in'" != "" {
         local filtro `if' `in' & edad >= `age'
     }
@@ -610,244 +623,138 @@ program define ginitwfeduc
         local filtro if edad >= `age'
     }
     
-    di _n as text "{title:Educational Gini Analysis (Population aged `age'+)}"
-    di as text "Based on Thomas, Wang & Fan (2001)"
-    di as text "{hline 60}"
+    di _n as text "Calculando Gini Educativo para población >= `age' años"
     
     if "`by'" != "" {
         ginitwf anios_educ `filtro' `exp', by(`by') type(discrete) ///
-            levels(nivel_educ) xivar(xi) saving(`saving') `replace'
+            levels(nivel_educ) xivar(xi)
     }
     else {
         ginitwf anios_educ `filtro' `exp', type(discrete) ///
-            levels(nivel_educ) xivar(xi) saving(`saving') `replace'
+            levels(nivel_educ) xivar(xi)
     }
 end
 
+* 5.3 ginitwfresumen (compatible)
 program define ginitwfresumen
     version 14
-    syntax [, SAVe(string) REPLACE EXPort(string) CLEAR]
+    syntax [, SAVe(string) REPLACE]
     
-    * Verificar que hay resultados
     if "`r(type)'" == "" {
-        di as error "No results from ginitwf. Run ginitwf first."
+        di as error "No hay resultados. Ejecute ginitwf primero."
         exit 301
     }
     
-    di _n as text "{title:Summary of Gini Analysis}"
-    di as text "{hline 60}"
-    di as text "Method:          " as result "`r(method)'"
-    di as text "Type:            " as result "`r(type)'"
-    di as text "Variable:        " as result "`r(var)'"
-    di as text "Observations:    " as result r(N)
+    di _n as text "="*60
+    di as text "RESUMEN DE RESULTADOS GINI"
+    di as text "="*60
     
-    if r(sum_w) != . & r(sum_w) != r(N) {
-        di as text "Sum of weights:  " as result %12.2f r(sum_w)
-    }
-    
-    di as text "Mean (μ):        " as result %12.4f r(mean)
-    di as text "Gini coefficient:" as result %12.4f r(gini)
+    di as text "Método: " as result "`r(method)'"
+    di as text "Tipo: " as result "`r(type)'"
+    di as text "Variable: " as result "`r(var)'"
+    di as text "Observaciones: " as result r(N)
+    di as text "Media (μ): " as result %9.4f r(mean)
+    di as text "Coeficiente Gini: " as result %9.4f r(gini)
     
     if "`r(type)'" == "discrete" {
-        di as text "Levels:          " as result r(niveles)
-        if r(min) != . & r(max) != . {
-            di as text "Range (min-max): " as result r(min) " - " r(max)
-        }
-    }
-    else if "`r(type)'" == "continuous" {
-        if r(sd) != . {
-            di as text "Std. Deviation:  " as result %12.4f r(sd)
-        }
+        di as text "Niveles educativos: " as result r(niveles)
     }
     
-    di as text "{hline 60}"
+    di as text "Rango: " as result r(min) " - " r(max)
     
     * Interpretación
-    di _n as text "Interpretation of Gini coefficient:"
-    
-    if "`r(type)'" == "discrete" {
-        * Escala para Gini educativo
-        if r(gini) < 0.15 {
-            di as text "  Educational inequality: " as green "VERY LOW"
-            di as text "  Interpretation: High educational equality in the population"
-        }
-        else if r(gini) < 0.25 {
-            di as text "  Educational inequality: " as green "LOW"
-            di as text "  Interpretation: Moderate educational equality"
-        }
-        else if r(gini) < 0.35 {
-            di as text "  Educational inequality: " as yellow "MODERATE"
-            di as text "  Interpretation: Noticeable educational disparities"
-        }
-        else if r(gini) < 0.45 {
-            di as text "  Educational inequality: " as red "HIGH"
-            di as text "  Interpretation: Significant educational gaps"
-        }
-        else {
-            di as text "  Educational inequality: " as red "VERY HIGH"
-            di as text "  Interpretation: Severe educational inequality"
-        }
+    di _n as text "Interpretación:"
+    if r(gini) < 0.2 {
+        di as text "  Desigualdad: " as green "BAJA"
+    }
+    else if r(gini) < 0.4 {
+        di as text "  Desigualdad: " as yellow "MODERADA"
+    }
+    else if r(gini) < 0.6 {
+        di as text "  Desigualdad: " as red "ALTA"
     }
     else {
-        * Escala para Gini general
-        if r(gini) < 0.2 {
-            di as text "  Inequality level: " as green "LOW"
-            di as text "  Interpretation: Relatively equal distribution"
-        }
-        else if r(gini) < 0.4 {
-            di as text "  Inequality level: " as yellow "MODERATE"
-            di as text "  Interpretation: Acceptable but could improve"
-        }
-        else if r(gini) < 0.6 {
-            di as text "  Inequality level: " as red "HIGH"
-            di as text "  Interpretation: Significant inequality"
-        }
-        else {
-            di as text "  Inequality level: " as red "VERY HIGH"
-            di as text "  Interpretation: Extreme inequality"
-        }
+        di as text "  Desigualdad: " as red "MUY ALTA"
     }
     
-    * Guardar resultados si se solicita
+    * Guardar si se solicita
     if "`save'" != "" {
         preserve
         clear
-        
-        * Crear dataset con resultados
         set obs 1
+        
+        gen metodo = "`r(method)'"
+        gen tipo = "`r(type)'"
         gen variable = "`r(var)'"
-        gen method = "`r(method)'"
-        gen type = "`r(type)'"
         gen N = r(N)
-        gen sum_w = r(sum_w)
-        gen mean = r(mean)
+        gen media = r(mean)
         gen gini = r(gini)
+        gen min = r(min)
+        gen max = r(max)
         
         if "`r(type)'" == "discrete" {
             gen niveles = r(niveles)
-            gen min = r(min)
-            gen max = r(max)
-            gen range = r(max) - r(min)
         }
-        else if "`r(type)'" == "continuous" {
-            gen sd = r(sd)
-        }
-        
-        gen fecha = date(c(current_date), "DMY")
-        format fecha %td
         
         save "`save'", `replace'
-        di as green _n "Results saved to: `save'"
-        
-        if "`export'" != "" {
-            if inlist("`export'", "csv", "excel", "dta") {
-                if "`export'" == "csv" {
-                    export delimited using "`save'.csv", replace
-                    di as green "Exported to CSV: `save'.csv"
-                }
-                else if "`export'" == "excel" {
-                    export excel using "`save'.xlsx", firstrow(variables) replace
-                    di as green "Exported to Excel: `save'.xlsx"
-                }
-                else if "`export'" == "dta" {
-                    save "`save'.dta", replace
-                    di as green "Exported to Stata: `save'.dta"
-                }
-            }
-        }
-        
-        if "`clear'" == "clear" {
-            restore, not
-        }
-        else {
-            restore
-        }
+        di as green _n "Resultados guardados en: `save'"
+        restore
     }
 end
 
+* 5.4 ginitwfhelp (ayuda completa)
 program define ginitwfhelp
     version 14
     di _n
-    di as text "{title:GINITWF - Gini Coefficient Calculator for Stata}"
-    di as text "{hline 70}"
+    di as text "GINITWF - VERSIÓN 3.0.0 (COMPATIBLE)"
+    di as text "=================================="
     di _n
-    di as text "Version: 2.0.0 (30 March 2025)"
-    di as text "Author: Washington Quintero"
-    di as text "Institution: Universidad de Guayaquil"
-    di as text "Repository: {browse https://github.com/washingtonquintero/ginitwf}"
+    di as text "COMANDOS DISPONIBLES:"
     di _n
-    di as text "{hline 70}"
+    di as text "  1. " as result "ginitwf varname [if] [in] [weight] [, options]"
+    di as text "     Calcula coeficiente Gini (con/sin by()/weight())"
     di _n
-    
-    di as text "{bf:MAIN COMMANDS:}"
+    di as text "  2. " as result "ginitwfsetup"
+    di as text "     Prepara variables para análisis educativo"
     di _n
-    di as text "  {bf:ginitwf} varname [if] [in] [weight] [, options]"
-    di as text "     Calculate Gini coefficient for continuous or discrete variables"
+    di as text "  3. " as result "ginitwfeduc [weight] [, by(varname) age(#)]"
+    di as text "     Calcula Gini educativo simplificado"
     di _n
-    di as text "  {bf:ginitwfsetup} [if] [in]"
-    di as text "     Setup educational variables for Gini analysis (creates anios_educ, nivel_educ, xi)"
+    di as text "  4. " as result "ginitwfresumen [, save(archivo) replace]"
+    di as text "     Muestra y guarda resultados"
     di _n
-    di as text "  {bf:ginitwfeduc} [if] [in] [weight] [, by(varname) age(#) saving()]"
-    di as text "     Calculate Educational Gini for population aged 25+ (or specified age)"
+    di as text "  5. " as result "ginitwfhelp"
+    di as text "     Muestra esta ayuda"
     di _n
-    di as text "  {bf:ginitwfresumen} [, save(filename) replace export(format) clear]"
-    di as text "     Show detailed summary and optionally save results"
+    di as text "OPCIONES PRINCIPALES PARA ginitwf:"
     di _n
-    di as text "  {bf:ginitwfhelp}"
-    di as text "     Show this help"
+    di as text "  type(continuous|discrete)  - Tipo de variable"
+    di as text "  levels(varname)           - Variable de niveles (para discrete)"
+    di as text "  xivar(varname)            - Variable xi (para discrete)"
+    di as text "  by(varname)               - Calcular por grupos"
+    di as text "  weight                    - Usar pesos muestrales"
+    di as text "  saving(archivo)           - Guardar resultados"
+    di as text "  replace                   - Reemplazar archivo existente"
     di _n
-    
-    di as text "{bf:MAIN OPTIONS for ginitwf:}"
+    di as text "EJEMPLOS DE USO:"
     di _n
-    di as text "  {bf:type(continuous|discrete)}" _col(30) "Type of variable"
-    di as text "  {bf:levels(varname)}" _col(30) "Level variable (for discrete type)"
-    di as text "  {bf:xivar(varname)}" _col(30) "Xi variable with average years (for discrete)"
-    di as text "  {bf:by(varname)}" _col(30) "Calculate Gini by groups"
-    di as text "  {bf:educational}" _col(30) "Shortcut for type(discrete)"
-    di as text "  {bf:saving(filename)}" _col(30) "Save results to file"
-    di as text "  {bf:replace}" _col(30) "Replace existing file"
-    di as text "  {bf:noprint}" _col(30) "Suppress output"
-    di _n
-    
-    di as text "{bf:WEIGHT TYPES supported:}"
-    di as text "  aweight, fweight, pweight, iweight"
-    di _n
-    
-    di as text "{bf:EXAMPLES:}"
-    di _n
-    di as text "  1. Gini for continuous variable:"
-    di as result "     . ginitwf income, type(continuous)"
-    di as result "     . ginitwf income [aw=weight], by(region)"
-    di _n
-    di as text "  2. Educational Gini:"
-    di as result "     . ginitwfsetup"
+    di as text "  A) " as result "SIN by()/weight() (modo original):"
+    di as result "     . ginitwf educ, type(continuous)"
     di as result "     . ginitwf anios_educ, type(discrete) levels(nivel_educ) xivar(xi)"
-    di as result "     . ginitwfeduc, by(area) saving(results.dta)"
     di _n
-    di as text "  3. With weights and saving results:"
-    di as result "     . ginitwf gasto_educ [aw=peso], by(quintil) saving(gini_quintil.dta)"
-    di as result "     . ginitwfresumen, save(summary.xlsx) export(excel)"
+    di as text "  B) " as result "CON by() y weight():"
+    di as result "     . ginitwf educ [aw=peso], by(region)"
+    di as result "     . ginitwf anios_educ [aw=peso], by(area) type(discrete) levels(nivel_educ) xivar(xi)"
     di _n
-    
-    di as text "{bf:METHODOLOGICAL REFERENCES:}"
+    di as text "  C) " as result "Usando comandos auxiliares:"
+    di as result "     . ginitwfsetup"
+    di as result "     . ginitwfeduc if edad >= 25, by(quintil)"
+    di as result "     . ginitwfresumen, save(resultados.dta)"
     di _n
-    di as text "  1. Deaton, A. (1997). {it:The Analysis of Household Surveys:}"
-    di as text "     {it:A Microeconometric Approach to Development Policy.}"
-    di as text "     Johns Hopkins University Press."
+    di as text "MÉTODOS IMPLEMENTADOS:"
+    di as text "  - Deaton, A. (1997): Variables continuas"
+    di as text "  - Thomas, Wang & Fan (2001): Variables discretas (Gini Educativo)"
     di _n
-    di as text "  2. Thomas, V., Wang, Y., & Fan, X. (2001). {it:Measuring Education Inequality:}"
-    di as text "     {it:Gini Coefficients of Education.} World Bank Policy Research"
-    di as text "     Working Paper No. 2525."
-    di _n
-    di as text "  3. Cuenca, R., & Urrutia, C. E. (2019). {it:Explorando las brechas}"
-    di as text "     {it:de desigualdad educativa en el Perú.} Revista Mexicana de"
-    di as text "     Investigación Educativa, 24(81), 431-461."
-    di _n
-    
-    di as text "{bf:FOR MORE HELP:}"
-    di as text "  Online documentation: {browse https://github.com/washingtonquintero/ginitwf}"
-    di as text "  Course materials: {browse https://gptonline.ai/}"
-    di as text "  Email: washington.quintero@ug.edu.ec"
-    di _n
-    di as text "{hline 70}"
+    di as text "REPOSITORIO: https://github.com/washingtonquintero/ginitwf"
+    di as text "AUTOR: Washington Quintero - Universidad de Guayaquil"
 end
