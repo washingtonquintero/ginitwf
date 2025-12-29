@@ -1,6 +1,6 @@
 v 3
-d ginitwf: Calcula coeficientes de Gini para variables continuas y Gini Educativo para discretas
-d Version: 2.0.0
+d ginitwf: Gini coefficients for continuous and discrete variables
+d Version: 3.0.0
 d Distribution-Date: 30 March 2025
 d Author: Washington Quintero
 d Institution: Universidad de Guayaquil
@@ -10,6 +10,3 @@ d Support: https://github.com/washingtonquintero/ginitwf/issues
 d License: MIT
 f ginitwf.ado
 f ginitwf.sthlp
-d examples/ejemplo_basico.do
-d examples/ejemplo_educativo.do
-d tests/test_ginitwf.do
