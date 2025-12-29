@@ -1,0 +1,17 @@
+*! v 3.0.0 30mar2025
+*! TOC file for ginitwf package
+
+package ginitwf
+    d "Gini coefficients for educational inequality analysis"
+    d "Based on Deaton (1997) and Thomas, Wang & Fan (2001)"
+    d "Author: Washington Quintero"
+    d "Institution: Universidad de Guayaquil"
+    d "Date: 2025-03-30"
+    d "Version: 3.0.0"
+    d "URL: https://github.com/washingtonquintero/ginitwf"
+    d "License: MIT"
+    
+package ginitwf from .
+    d "Main program files"
+    f ginitwf.ado
+    f ginitwf.sthlp
