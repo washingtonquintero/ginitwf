@@ -1,2 +1,13 @@
-v 1
-d GINITWF - Gini coefficient with flexible weights
+v 3
+d Ginitwf: Gini coefficients for continuous and discrete variables
+d Version: 3.0.0
+d Date: 2025-03-30
+d Author: Washington Quintero
+d Institution: Universidad de Guayaquil
+d URL: https://github.com/washingtonquintero/ginitwf
+d License: MIT
+p ginitwf            Gini Educational Coefficient Calculator
+p ginitwfsetup       Setup educational variables
+p ginitwfeduc        Calculate educational Gini
+p ginitwfresumen     Show and save results
+p ginitwfhelp        Show help
