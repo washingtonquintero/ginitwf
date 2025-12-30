@@ -1,4 +1,4 @@
-*! v 3.0.3 30mar2025
+*! v 3.1.0 30mar2025
 *! TOC file for ginitwf package
 
 package ginitwf
@@ -7,7 +7,7 @@ package ginitwf
     d "Author: Washington Quintero"
     d "Institution: Universidad de Guayaquil"
     d "Date: 2025-03-30"
-    d "Version: 3.0.3"
+    d "Version: 3.1.0"
     d "URL: https://github.com/washingtonquintero/ginitwf"
     d "License: MIT"
     
@@ -15,10 +15,3 @@ package ginitwf from .
     d "Main program files"
     f ginitwf.ado
     f ginitwf.sthlp
-    
-package ginitwf from .
-    d "Auxiliary commands"
-    d "ginitwfsetup - Setup educational variables"
-    d "ginitwfeduc  - Calculate educational Gini"
-    d "ginitwfresumen - Show and save results"
-    d "ginitwfhelp  - Show help"
