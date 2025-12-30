@@ -1,6 +1,6 @@
 v 3
 d Ginitwf: Gini coefficients for continuous and discrete variables
-d Version: 3.0.1
+d Version: 3.0.3
 d Date: 2025-03-30
 d Author: Washington Quintero
 d Institution: Universidad de Guayaquil
