@@ -1,4 +1,4 @@
-*! version 3.0.1 2025-03-30
+*! version 3.0.3 2025-03-30
 *! Ginitwf: Gini coefficients with and without by()/weight() options
 *! Author: Washington Quintero
 *! Compatible with: Stata 14+
@@ -13,15 +13,19 @@ program define ginitwf, rclass
     marksample touse
     markout `touse' `by'
     
-    * Mensaje informativo sobre opciones disponibles
+    * Mensaje informativo mejorado
     if ("`by'" != "" | "`weight'" != "") & "`noprint'" == "" {
-        di as text _n "Nota: Usando opciones avanzadas ("
-        if "`by'" != "" di as text "by(`by') "
-        if "`weight'" != "" di as text "`weight'`exp' "
-        di as text ")"
+        di as text _n "Nota: Usando opciones avanzadas"
+        if "`by'" != "" {
+            di as text "  - by(`by')"
+        }
+        if "`weight'" != "" {
+            local peso_exp = subinstr(`"`exp'"', "=", "", 1)
+            di as text "  - `weight'(`peso_exp')"
+        }
     }
     
-    * Determinar tipo de análisis si se especificó educational
+    * Determinar tipo de análisis
     if "`educational'" != "" {
         local type "discrete"
     }
@@ -64,7 +68,8 @@ program define ginitwf_by, rclass
         di as text "Número de grupos: " as result `n_groups'
         di as text "Variable: " as result "`varlist'"
         if "`weight'" != "" {
-            di as text "Peso: " as result "`weight'`exp'"
+            local peso_exp = subinstr(`"`exp'"', "=", "", 1)
+            di as text "Peso: " as result "`weight'(`peso_exp')"
         }
         di as text "{hline 60}"
     }
@@ -220,14 +225,17 @@ program define ginitwf_general, rclass
         gini_continuo `varlist' if `touse' `exp', `noprint'
         
         if "`noprint'" != "noprint" {
-            di _n as text "Coeficiente de Gini (Deaton, 1997)"
+            di _n as text "{title:Coeficiente de Gini (Deaton, 1997)}"
+            di as text "{hline 50}"
             di as text "Variable: " as result "`varlist'"
             di as text "Observaciones: " as result r(N)
             if "`weight'" != "" {
-                di as text "Peso utilizado: " as result "`weight'`exp'"
+                local peso_exp = subinstr(`"`exp'"', "=", "", 1)
+                di as text "Peso utilizado: " as result "`weight'(`peso_exp')"
             }
             di as text "Media (μ): " as result %12.4f r(mean)
             di as text "Coeficiente de Gini: " as result %12.4f r(gini)
+            di as text "{hline 50}"
         }
     }
     else if "`type'" == "discrete" {
@@ -242,16 +250,19 @@ program define ginitwf_general, rclass
             levels(`levels') xivar(`xivar') `noprint'
         
         if "`noprint'" != "noprint" {
-            di _n as text "Coeficiente de Gini Educativo (Thomas, Wang & Fan, 2001)"
+            di _n as text "{title:Coeficiente de Gini Educativo (Thomas, Wang & Fan, 2001)}"
+            di as text "{hline 60}"
             di as text "Variable de años: " as result "`varlist'"
             di as text "Variable de nivel: " as result "`levels'"
             di as text "Variable xi: " as result "`xivar'"
             di as text "Observaciones: " as result r(N)
             if "`weight'" != "" {
-                di as text "Peso utilizado: " as result "`weight'`exp'"
+                local peso_exp = subinstr(`"`exp'"', "=", "", 1)
+                di as text "Peso utilizado: " as result "`weight'(`peso_exp')"
             }
             di as text "Media (μ): " as result %12.4f r(mean)
             di as text "Coeficiente de Gini: " as result %12.4f r(gini)
+            di as text "{hline 60}"
         }
     }
     else {
@@ -278,7 +289,8 @@ program define ginitwf_general, rclass
         }
         
         if "`weight'" != "" {
-            gen peso_utilizado = "`weight'`exp'"
+            local peso_exp = subinstr(`"`exp'"', "=", "", 1)
+            gen peso_utilizado = "`weight'(`peso_exp')"
         }
         
         save "`saving'", `replace'
@@ -536,10 +548,10 @@ program define gini_discreto, rclass
 end
 
 * ---------------------------------------------------------------------------
-* 5. COMANDOS AUXILIARES (MANTENIENDO COMPATIBILIDAD)
+* 5. COMANDOS AUXILIARES
 * ---------------------------------------------------------------------------
 
-* 5.1 ginitwfsetup (igual que antes)
+* 5.1 ginitwfsetup
 program define ginitwfsetup
     version 14
     di _n as text "Configurando variables para Gini Educativo..."
@@ -591,13 +603,13 @@ program define ginitwfsetup
     replace xi = 18 if nivel_educ == 8
     
     * Etiquetar
-    label var anios_educ "Years of education"
-    label var nivel_educ "Educational level (1-8)"
-    label var xi "Average years by level"
+    label var anios_educ "Años de educación"
+    label var nivel_educ "Nivel educativo (1-8)"
+    label var xi "Años promedio por nivel"
     
-    label define niveles 1 "No education" 2 "Primary incomplete" 3 "Primary complete" ///
-                        4 "Secondary incomplete" 5 "Secondary complete" ///
-                        6 "Higher incomplete" 7 "Higher complete" 8 "Postgraduate"
+    label define niveles 1 "Sin nivel" 2 "Primaria inc." 3 "Primaria comp." ///
+                        4 "Secundaria inc." 5 "Secundaria comp." ///
+                        6 "Superior inc." 7 "Superior comp." 8 "Postgrado"
     label values nivel_educ niveles
     
     * Estadísticas descriptivas
@@ -611,24 +623,11 @@ program define ginitwfsetup
     qui tab nivel_educ
     local n_levels = r(r)
     
-    di as green "✓ Created variable: anios_educ (years of education)"
-    di as green "✓ Created variable: nivel_educ (educational level 1-8)"
-    di as green "✓ Created variable: xi (average years by level)"
-    di _n
-    di as text "Descriptive statistics:"
-    di as text "  Observations with education data: " as result `n'
-    di as text "  Mean years of education: " as result %6.2f `mean_educ'
-    di as text "  Std. Dev. of education: " as result %6.2f `sd_educ'
-    di as text "  Number of educational levels: " as result `n_levels'
-    di _n
-    di as text "To calculate Educational Gini, use:"
-    di as result "  ginitwf anios_educ, type(discrete) levels(nivel_educ) xivar(xi)"
-    di _n
-    di as text "For population aged 25+ (completed education):"
-    di as result "  ginitwf anios_educ if edad >= 25, type(discrete) levels(nivel_educ) xivar(xi)"
+    di as green "✓ Variables creadas: anios_educ, nivel_educ, xi"
+    di _n as text "Use: ginitwf anios_educ, type(discrete) levels(nivel_educ) xivar(xi)"
 end
 
-* 5.2 ginitwfeduc (versión simplificada)
+* 5.2 ginitwfeduc
 program define ginitwfeduc
     version 14
     syntax [if] [in] [aweight fweight/] [, BY(varname) AGE(integer 25)]
@@ -660,7 +659,7 @@ program define ginitwfeduc
     }
 end
 
-* 5.3 ginitwfresumen (compatible)
+* 5.3 ginitwfresumen
 program define ginitwfresumen
     version 14
     syntax [, SAVe(string) REPLACE]
@@ -727,11 +726,11 @@ program define ginitwfresumen
     }
 end
 
-* 5.4 ginitwfhelp (ayuda completa)
+* 5.4 ginitwfhelp
 program define ginitwfhelp
     version 14
     di _n
-    di as text "GINITWF - VERSIÓN 3.0.1 (COMPATIBLE)"
+    di as text "GINITWF - VERSIÓN 3.0.3 (COMPATIBLE)"
     di as text "=================================="
     di _n
     di as text "COMANDOS DISPONIBLES:"
@@ -783,5 +782,5 @@ program define ginitwfhelp
     di _n
     di as text "REPOSITORIO: https://github.com/washingtonquintero/ginitwf"
     di as text "AUTOR: Washington Quintero - Universidad de Guayaquil"
-    di as text "VERSIÓN: 3.0.1 (30 Marzo 2025)"
+    di as text "VERSIÓN: 3.0.3 (30 Marzo 2025)"
 end
